@@ -93,6 +93,7 @@ resource "aws_iam_role" "lambda_role" {
 }
 
 # IAM Policy for Lambda
+# ⚡ VPC 관련 권한 제거 (VPC 미사용으로 불필요)
 resource "aws_iam_role_policy" "lambda_policy" {
   name = "${var.project_name}-${var.session_id}-lambda-policy"
   role = aws_iam_role.lambda_role.id
@@ -134,16 +135,9 @@ resource "aws_iam_role_policy" "lambda_policy" {
           "cloudwatch:GetMetricData"
         ]
         Resource = "*"
-      },
-      {
-        Effect = "Allow"
-        Action = [
-          "ec2:CreateNetworkInterface",
-          "ec2:DescribeNetworkInterfaces",
-          "ec2:DeleteNetworkInterface"
-        ]
-        Resource = "*"
       }
+      # ⭐ VPC ENI 권한 제거 (ec2:CreateNetworkInterface 등)
+      # Lambda가 VPC 밖에서 실행되므로 불필요
     ]
   })
 }

@@ -91,3 +91,7 @@ Thumbs.db
 # Backup files
 *.backup
 *.bak
+
+# Test scripts (로컬 개발용, EC2 배포 불필요)
+test-concurrency.sh
+

@@ -509,10 +509,72 @@ public class TerraformService {
 
     /**
      * Terraform 파일들을 세션 작업 디렉토리로 복사
+     * JAR 파일 내부의 classpath 리소스를 지원합니다
      */
     private void copyTerraformFiles(String targetDir) throws IOException {
-        Path sourcePath = Paths.get(terraformBasePath);
         Path targetPath = Paths.get(targetDir);
+
+        // JAR 파일에서 실행 중인지 확인
+        boolean runningFromJar = getClass().getResource("/" + terraformBasePath.replace("src/main/resources/", "")) == null;
+
+        if (runningFromJar || !Paths.get(terraformBasePath).toFile().exists()) {
+            // JAR에서 실행 중이거나 상대 경로로 접근 불가능한 경우, classpath에서 복사
+            log.info("Copying Terraform files from classpath (running from JAR)...");
+            copyFromClasspath(targetPath);
+        } else {
+            // 개발 환경에서는 파일 시스템에서 직접 복사
+            log.info("Copying Terraform files from filesystem (development mode)...");
+            copyFromFilesystem(targetPath);
+        }
+
+        log.info("✅ Terraform files copied to: {}", targetDir);
+    }
+
+    /**
+     * classpath에서 Terraform 파일 복사 (JAR 실행 시)
+     */
+    private void copyFromClasspath(Path targetPath) throws IOException {
+        String[] terraformFiles = {
+            "terraform/backend.tf",
+            "terraform/cloudwatch.tf",
+            "terraform/dynamodb.tf",
+            "terraform/ec2.tf",
+            "terraform/iam.tf",
+            "terraform/lambda.tf",
+            "terraform/main.tf",
+            "terraform/outputs.tf",
+            "terraform/provider.tf",
+            "terraform/s3.tf",
+            "terraform/sns.tf",
+            "terraform/variables.tf",
+            "terraform/vpc.tf",
+            "terraform/lambda/alarm_processor.py",
+            "terraform/scripts/bootstrap-backend.sh"
+        };
+
+        for (String resourcePath : terraformFiles) {
+            try (InputStream inputStream = getClass().getClassLoader().getResourceAsStream(resourcePath)) {
+                if (inputStream == null) {
+                    log.warn("Resource not found: {}", resourcePath);
+                    continue;
+                }
+
+                // 파일 경로에서 'terraform/' 제거하고 대상 경로 생성
+                String relativePath = resourcePath.replace("terraform/", "");
+                Path destFile = targetPath.resolve(relativePath);
+                Files.createDirectories(destFile.getParent());
+                Files.copy(inputStream, destFile, StandardCopyOption.REPLACE_EXISTING);
+
+                log.debug("Copied: {} -> {}", resourcePath, destFile);
+            }
+        }
+    }
+
+    /**
+     * 파일 시스템에서 Terraform 파일 복사 (개발 환경)
+     */
+    private void copyFromFilesystem(Path targetPath) throws IOException {
+        Path sourcePath = Paths.get(terraformBasePath);
 
         // ⭐ 필수 파일 존재 확인
         validateRequiredTerraformFiles(sourcePath);
@@ -532,8 +594,6 @@ public class TerraformService {
                         }
                     });
         }
-
-        log.info("✅ Terraform files copied to: {}", targetDir);
     }
 
     /**
